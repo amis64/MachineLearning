@@ -1,34 +1,42 @@
 import os
-import pyodbc
+import pytds
 
 
 def get_connection():
-    conn_str = (
-        f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-        f"SERVER={os.environ.get('DB_SERVER')};"
-        f"DATABASE={os.environ.get('DB_NAME')};"
-        f"UID={os.environ.get('DB_USER')};"
-        f"PWD={os.environ.get('DB_PASSWORD')};"
+    server = os.getenv("DB_SERVER", "").strip()
+    database = os.getenv("DB_NAME", "").strip()
+    user = os.getenv("DB_USER", "").strip()
+    password = os.getenv("DB_PASSWORD", "").strip()
+
+    return pytds.connect(
+        server=server,
+        database=database,
+        user=user,
+        password=password,
+        port=1433,
+        timeout=15,
+        validate_host=False,
+        autocommit=True
     )
-    return pyodbc.connect(conn_str)
-
-
 def get_models():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, Titulo FROM modelos")  
-    models = cursor.fetchall()
-    conn.close()
-    return models
-
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT ID, Titulo FROM Modelos")
+            rows = cursor.fetchall()
+            return [{"ID": row[0], "Titulo": row[1]} for row in rows]
 
 def get_model_by_name(model_name):
-    conn = get_connection()
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT Titulo, Descripcion, referencia, urlImagen FROM modelos WHERE Titulo = ?", (model_name,))
-    
-    model = cursor.fetchone()
-    conn.close()
-    
-    return model
+    with get_connection() as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT Titulo, Descripcion, referencia, urlImagen FROM modelos WHERE Titulo = %s",
+                (model_name,)
+            )
+            row = cursor.fetchone()
+            return {
+                    "Titulo": row[0],
+                    "Descripcion": row[1],
+                    "referencia": row[2],
+                    "urlImagen": row[3]
+                }
+
